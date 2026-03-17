@@ -1,0 +1,54 @@
+{
+  "common": {
+    "app_name": "Mwongozo wa Afya wa AI",
+    "start": "Anza ushauri",
+    "send": "Tuma",
+    "skip": "Ruka",
+    "upload": "Pakia picha",
+    "allow_location": "Ruhusu mahali",
+    "listen": "Sikiliza",
+    "download_pdf": "Pakua PDF",
+    "loading": "Inapakia…",
+    "error": "Hitilafu imetokea. Tafadhali jaribu tena."
+  },
+  "disclaimer": {
+    "short": "Hii haibadilishi ushauri wa kitaalamu wa matibabu.",
+    "full": "Zana hii haibadilishi ushauri wa kitaalamu wa matibabu, utambuzi, au matibabu. Katika dharura, piga simu huduma za dharura za karibu mara moja."
+  },
+  "stages": {
+    "intake": "Usajili",
+    "questioning": "Tathmini",
+    "visual": "Ukaguzi wa Macho",
+    "triage": "Uteuzi",
+    "navigation": "Mwongozo wa Huduma",
+    "report": "Ripoti",
+    "complete": "Imekamilika"
+  },
+  "triage": {
+    "RED": "Dharura",
+    "YELLOW": "Haraka",
+    "GREEN": "Si Dharura"
+  },
+  "report": {
+    "your_summary": "Muhtasari Wako",
+    "clinical_note": "Kumbukumbu ya Kliniki",
+    "what_we_found": "Tulichogundua",
+    "what_to_do_next": "Hatua za Kufuata",
+    "where_to_go": "Uende Wapi",
+    "what_to_tell_doctor": "Mwambie Daktari Nini"
+  },
+  "location": {
+    "title": "Shiriki Mahali Pako",
+    "description": "Ruhusu ufikiaji wa mahali pako ili tupate kituo cha karibu zaidi.",
+    "captured": "Mahali pako kimehifadhiwa ✓"
+  },
+  "image": {
+    "title": "Hiari: Pakia Picha",
+    "description": "Ikiwa tatizo lako linaonekana (k.m. upele, jeraha, uvimbe), unaweza kupakia picha.",
+    "drop_hint": "Bonyeza au buruta picha hapa"
+  },
+  "chat": {
+    "placeholder": "Andika ujumbe wako…",
+    "typing": "Anaandika…"
+  }
+}

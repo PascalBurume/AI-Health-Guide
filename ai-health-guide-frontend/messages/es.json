@@ -1,0 +1,54 @@
+{
+  "common": {
+    "app_name": "Guía de Salud IA",
+    "start": "Iniciar consulta",
+    "send": "Enviar",
+    "skip": "Omitir",
+    "upload": "Subir imagen",
+    "allow_location": "Permitir ubicación",
+    "listen": "Escuchar",
+    "download_pdf": "Descargar PDF",
+    "loading": "Cargando…",
+    "error": "Ocurrió un error. Por favor inténtelo de nuevo."
+  },
+  "disclaimer": {
+    "short": "Esto no reemplaza el consejo médico profesional.",
+    "full": "Esta herramienta no reemplaza el consejo médico profesional, diagnóstico o tratamiento. En caso de emergencia, llame inmediatamente a los servicios de emergencia locales."
+  },
+  "stages": {
+    "intake": "Registro",
+    "questioning": "Evaluación",
+    "visual": "Revisión visual",
+    "triage": "Triaje",
+    "navigation": "Navegación de atención",
+    "report": "Informe",
+    "complete": "Completado"
+  },
+  "triage": {
+    "RED": "Emergencia",
+    "YELLOW": "Urgente",
+    "GREEN": "No urgente"
+  },
+  "report": {
+    "your_summary": "Su resumen",
+    "clinical_note": "Nota clínica",
+    "what_we_found": "Lo que encontramos",
+    "what_to_do_next": "Qué hacer a continuación",
+    "where_to_go": "Dónde ir",
+    "what_to_tell_doctor": "Qué decirle al médico"
+  },
+  "location": {
+    "title": "Comparte tu ubicación",
+    "description": "Permite el acceso a tu ubicación para encontrar el centro de atención más cercano.",
+    "captured": "Ubicación capturada ✓"
+  },
+  "image": {
+    "title": "Opcional: Subir una imagen",
+    "description": "Si su problema es visible (p.ej. sarpullido, herida, hinchazón), puede subir una foto.",
+    "drop_hint": "Haga clic o arrastre una imagen aquí"
+  },
+  "chat": {
+    "placeholder": "Escriba su mensaje…",
+    "typing": "Escribiendo…"
+  }
+}

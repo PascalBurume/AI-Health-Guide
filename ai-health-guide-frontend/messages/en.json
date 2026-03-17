@@ -1,0 +1,54 @@
+{
+  "common": {
+    "app_name": "AI Health Guide",
+    "start": "Start consultation",
+    "send": "Send",
+    "skip": "Skip",
+    "upload": "Upload image",
+    "allow_location": "Allow location",
+    "listen": "Listen",
+    "download_pdf": "Download PDF",
+    "loading": "Loading…",
+    "error": "An error occurred. Please try again."
+  },
+  "disclaimer": {
+    "short": "This does not replace professional medical advice.",
+    "full": "This tool does not replace professional medical advice, diagnosis, or treatment. In an emergency, call your local emergency services immediately."
+  },
+  "stages": {
+    "intake": "Intake",
+    "questioning": "Assessment",
+    "visual": "Visual Review",
+    "triage": "Triage",
+    "navigation": "Care Navigation",
+    "report": "Report",
+    "complete": "Complete"
+  },
+  "triage": {
+    "RED": "Emergency",
+    "YELLOW": "Urgent",
+    "GREEN": "Non-urgent"
+  },
+  "report": {
+    "your_summary": "Your Summary",
+    "clinical_note": "Clinical Note",
+    "what_we_found": "What we found",
+    "what_to_do_next": "What to do next",
+    "where_to_go": "Where to go",
+    "what_to_tell_doctor": "What to tell the doctor"
+  },
+  "location": {
+    "title": "Share your location",
+    "description": "Allow location access so we can find the nearest appropriate care facility.",
+    "captured": "Location captured ✓"
+  },
+  "image": {
+    "title": "Optional: Upload an image",
+    "description": "If your concern is visible (e.g., a rash, wound, or swelling), you can upload a photo.",
+    "drop_hint": "Click or drag an image here"
+  },
+  "chat": {
+    "placeholder": "Type your message…",
+    "typing": "Typing…"
+  }
+}

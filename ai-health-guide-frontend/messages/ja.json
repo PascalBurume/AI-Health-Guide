@@ -1,0 +1,54 @@
+{
+  "common": {
+    "app_name": "AI健康ガイド",
+    "start": "相談を開始する",
+    "send": "送信",
+    "skip": "スキップ",
+    "upload": "画像をアップロード",
+    "allow_location": "位置情報を許可",
+    "listen": "聴く",
+    "download_pdf": "PDFをダウンロード",
+    "loading": "読み込み中…",
+    "error": "エラーが発生しました。もう一度お試しください。"
+  },
+  "disclaimer": {
+    "short": "これは専門的な医療アドバイスに代わるものではありません。",
+    "full": "このツールは専門的な医療アドバイス、診断、または治療に代わるものではありません。緊急の場合は、直ちに地域の緊急サービスに電話してください。"
+  },
+  "stages": {
+    "intake": "受付",
+    "questioning": "評価",
+    "visual": "視覚的確認",
+    "triage": "トリアージ",
+    "navigation": "医療ナビゲーション",
+    "report": "レポート",
+    "complete": "完了"
+  },
+  "triage": {
+    "RED": "緊急",
+    "YELLOW": "至急",
+    "GREEN": "非緊急"
+  },
+  "report": {
+    "your_summary": "あなたのまとめ",
+    "clinical_note": "臨床メモ",
+    "what_we_found": "分かったこと",
+    "what_to_do_next": "次にすること",
+    "where_to_go": "どこへ行くか",
+    "what_to_tell_doctor": "医師に伝えること"
+  },
+  "location": {
+    "title": "位置情報を共有",
+    "description": "最寄りの適切な医療施設を見つけるために、位置情報へのアクセスを許可してください。",
+    "captured": "位置情報を取得しました ✓"
+  },
+  "image": {
+    "title": "任意：画像をアップロード",
+    "description": "症状が目に見える場合（発疹、傷、腫れなど）、写真をアップロードできます。",
+    "drop_hint": "クリックまたはドラッグして画像を追加"
+  },
+  "chat": {
+    "placeholder": "メッセージを入力…",
+    "typing": "入力中…"
+  }
+}

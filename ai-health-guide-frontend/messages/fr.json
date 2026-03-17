@@ -1,0 +1,54 @@
+{
+  "common": {
+    "app_name": "Guide de santé IA",
+    "start": "Démarrer la consultation",
+    "send": "Envoyer",
+    "skip": "Ignorer",
+    "upload": "Téléverser une image",
+    "allow_location": "Autoriser la localisation",
+    "listen": "Écouter",
+    "download_pdf": "Télécharger le PDF",
+    "loading": "Chargement…",
+    "error": "Une erreur s'est produite. Veuillez réessayer."
+  },
+  "disclaimer": {
+    "short": "Ceci ne remplace pas un avis médical professionnel.",
+    "full": "Cet outil ne remplace pas un avis médical professionnel, un diagnostic ou un traitement. En cas d'urgence, appelez immédiatement les services d'urgence locaux."
+  },
+  "stages": {
+    "intake": "Accueil",
+    "questioning": "Évaluation",
+    "visual": "Examen visuel",
+    "triage": "Triage",
+    "navigation": "Navigation vers les soins",
+    "report": "Rapport",
+    "complete": "Terminé"
+  },
+  "triage": {
+    "RED": "Urgence",
+    "YELLOW": "Urgent",
+    "GREEN": "Non urgent"
+  },
+  "report": {
+    "your_summary": "Votre résumé",
+    "clinical_note": "Note clinique",
+    "what_we_found": "Ce que nous avons trouvé",
+    "what_to_do_next": "Que faire ensuite",
+    "where_to_go": "Où aller",
+    "what_to_tell_doctor": "Que dire au médecin"
+  },
+  "location": {
+    "title": "Partagez votre position",
+    "description": "Autorisez l'accès à votre position pour trouver l'établissement de soins le plus proche.",
+    "captured": "Position enregistrée ✓"
+  },
+  "image": {
+    "title": "Facultatif : Téléverser une image",
+    "description": "Si votre problème est visible (p.ex. rougeur, plaie, gonflement), vous pouvez envoyer une photo.",
+    "drop_hint": "Cliquez ou glissez une image ici"
+  },
+  "chat": {
+    "placeholder": "Saisissez votre message…",
+    "typing": "En train d'écrire…"
+  }
+}
