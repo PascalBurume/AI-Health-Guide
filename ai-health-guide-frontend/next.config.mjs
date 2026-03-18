@@ -16,8 +16,9 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "media-src 'self' blob:",
-      "connect-src 'self' http://localhost:8000 http://127.0.0.1:8000",
-      "font-src 'self'",
+      "connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 data: blob:",
+      "font-src 'self' data:",
+      "worker-src 'self' blob:",
       "frame-ancestors 'none'",
     ].join("; "),
   },
@@ -31,6 +32,13 @@ const nextConfig = {
         headers: securityHeaders,
       },
     ];
+  },
+  webpack: (config) => {
+    // @react-pdf/renderer requires these aliases to avoid
+    // Node-only module resolution errors in the browser bundle.
+    config.resolve.alias.canvas = false;
+    config.resolve.alias.encoding = false;
+    return config;
   },
 };
 
