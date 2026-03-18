@@ -76,6 +76,7 @@ Patient Input
 | **MedGemma 1.5** (local) | Clinical LLM | All clinical reasoning, translation, multilingual generation, image analysis — patient data never leaves the premises |
 | **OpenAI Whisper** (cloud) | Speech-to-text | Best-in-class multilingual STT; only non-identifiable audio bytes hit the cloud |
 | **OpenAI TTS** (cloud) | Text-to-speech | Patient report read-aloud in patient's language; no PHI in audio response |
+| **OpenAI GPT-4o** (cloud) | Report generation | Patient report, clinician SOAP note, and report translation; de-identified clinical data only |
 | **Redis** (Docker container) | Session persistence | TTL-based auto-expiry (30 min), fast read/write, pub/sub for future SSE upgrade |
 | **PyTorch + Hugging Face Transformers** | Local inference | MedGemma model loading, GPU acceleration (CUDA/MPS/CPU) |
 | **Pydantic v2** | Data validation | Shared data contract between backend models and frontend TypeScript types |
@@ -806,19 +807,17 @@ All frontend routes are thin proxies — they add no business logic. They forwar
 
 | Frontend BFF Route | Proxies To |
 |-------------------|-----------|
-| `POST /api/session` | `POST /api/v1/sessions` |
-| `GET /api/session/[id]` | `GET /api/v1/sessions/{id}` |
-| `POST /api/session/[id]/message` | `POST /api/v1/sessions/{id}/messages` |
-| `POST /api/session/[id]/voice` | `POST /api/v1/sessions/{id}/voice` |
-| `POST /api/session/[id]/image` | `POST /api/v1/sessions/{id}/image` |
-| `POST /api/session/[id]/location` | `POST /api/v1/sessions/{id}/location` |
-| `GET /api/session/[id]/report` | `GET /api/v1/sessions/{id}/report` |
-| `GET /api/session/[id]/report/tts` | `GET /api/v1/sessions/{id}/report/tts` |
+| `POST /api/sessions` | `POST /api/v1/sessions` |
+| `GET /api/sessions/[id]` | `GET /api/v1/sessions/{id}` |
+| `POST /api/sessions/[id]/message` | `POST /api/v1/sessions/{id}/messages` |
+| `POST /api/sessions/[id]/voice` | `POST /api/v1/sessions/{id}/voice` |
+| `POST /api/sessions/[id]/image` | `POST /api/v1/sessions/{id}/image` |
+| `POST /api/sessions/[id]/location` | `POST /api/v1/sessions/{id}/location` |
 
 ### 6.3 BFF Proxy Pattern
 
 ```typescript
-// src/app/api/session/[id]/message/route.ts
+// app/api/sessions/[id]/message/route.ts
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const body = await req.json();
   const res = await fetch(`${process.env.BACKEND_URL}/api/v1/sessions/${params.id}/messages`, {
@@ -890,7 +889,7 @@ class RedisSessionClient:
 - BFF validates `session_id` format (UUID v4) before proxying — rejects malformed IDs.
 - Rate limiting on `POST /api/v1/sessions` — prevent session creation floods.
 - `BACKEND_URL` is a server-side-only environment variable — never exposed to client.
-- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` scoped to specific domains in Google Cloud Console.
+- `GOOGLE_MAPS_API_KEY` is a backend-only secret — used server-side for Places/Directions APIs, never exposed to the browser.
 
 ### Infrastructure
 - Redis bound to `localhost`/internal Docker network (not exposed externally), password-protected.
@@ -1103,7 +1102,7 @@ no flags AND severity 1–4 AND no visual concerns  →  GREEN
 | `sw` | Swahili | Kiswahili | LTR | ✓ |
 | `es` | Spanish | Español | LTR | ✓ |
 
-Language is extensible — adding a new language requires: (1) adding to `AppConfig.supported_languages`, (2) adding a flag SVG, (3) adding a `messages/{lang}.json` bundle. MedGemma 1.5 handles the language natively.
+Language is extensible — adding a new language requires: (1) adding to `AppConfig.supported_languages`, (2) adding a flag SVG, (3) adding a `messages/{lang}.json` bundle. MedGemma 1.0:4b handles the language natively.
 
 ---
 
@@ -1112,17 +1111,18 @@ Language is extensible — adding a new language requires: (1) adding to `AppCon
 ### Backend (`.env`)
 
 ```env
-# MedGemma (local)
-MEDGEMMA_MODEL_PATH=google/medgemma-1.5
-MEDGEMMA_DEVICE=cuda           # cuda | mps | cpu
+# MedGemma (local via Ollama)
+MEDGEMMA_MODEL_NAME=MedAIBase/MedGemma1.0:4b
+OLLAMA_BASE_URL=http://localhost:11434
 MEDGEMMA_MAX_TOKENS=2048
 MEDGEMMA_TEMPERATURE=0.3
 
-# OpenAI (voice features only)
+# OpenAI (voice + report generation/translation)
 OPENAI_API_KEY=sk-...
 WHISPER_MODEL=whisper-1
 TTS_MODEL=tts-1
 TTS_VOICE=nova
+OPENAI_REPORT_MODEL=gpt-4o
 
 # Google Maps
 GOOGLE_MAPS_API_KEY=...
@@ -1146,9 +1146,6 @@ DEFAULT_CLINICAL_LANGUAGE=en
 # Python backend (server-side only - never exposed to client)
 BACKEND_URL=http://localhost:8000
 
-# Google Maps (client-side - domain-restricted in Google Cloud Console)
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=...
-
 # App config
 NEXT_PUBLIC_APP_NAME=AI Health Guide
 NEXT_PUBLIC_MAX_RECORDING_SECONDS=30
@@ -1168,7 +1165,7 @@ NEXT_PUBLIC_POLL_INTERVAL_MS=1500
 | Storage | 50 GB SSD (model weights ~10 GB) | 100 GB NVMe SSD |
 | OS | Ubuntu 22.04 LTS / macOS 13+ | Ubuntu 22.04 LTS |
 
-> **CPU fallback:** MedGemma can run on CPU (`MEDGEMMA_DEVICE=cpu`) but inference latency increases to 30–120s per turn. For production, GPU is required.
+> **CPU fallback:** MedGemma can run on CPU via Ollama but inference latency increases to 30–120s per turn. For production, GPU is required.
 
 ---
 

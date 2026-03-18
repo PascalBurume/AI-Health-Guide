@@ -50,7 +50,7 @@ Patient Input
 | Field | Value |
 |-------|-------|
 | **Role** | Central coordinator — drives pipeline, manages session state, decides stage transitions |
-| **Model** | `medgemma-1.5` (local) |
+| **Model** | `medgemma-1.0:4b` via Ollama (local) |
 | **Inputs** | Raw patient messages (text, images, language preference) |
 | **Outputs** | Final assembled session with all intermediate artifacts |
 | **Tools** | `advance_stage`, `get_session_state`, `update_session_state`, `call_sub_agent` |
@@ -60,7 +60,7 @@ class SessionOrchestrator:
     """Drives the five-stage clinical pipeline."""
 
     def __init__(self, medgemma_client: MedGemmaClient, openai_client: AsyncOpenAI, config: AppConfig):
-        self.medgemma = medgemma_client  # Local MedGemma 1.5 for clinical reasoning
+        self.medgemma = medgemma_client  # Local MedGemma 1.0:4b via Ollama for clinical reasoning
         self.openai = openai_client      # OpenAI for voice features
         self.config = config
         self.agents: dict[str, BaseAgent] = {}
@@ -93,7 +93,7 @@ class SessionOrchestrator:
 | Field | Value |
 |-------|-------|
 | **Role** | Detects patient language, collects chief complaint |
-| **Model** | `medgemma-1.5` (local) — translation + intake |
+| **Model** | `medgemma-1.0:4b` via Ollama (local) — translation + intake |
 | **Inputs** | Raw patient text (first message) |
 | **Outputs** | `detected_language`, `chief_complaint`, `chief_complaint_english` |
 | **Tools** | `detect_language` (lingua library) |
@@ -137,7 +137,7 @@ class IntakeAgent(BaseAgent):
 | Field | Value |
 |-------|-------|
 | **Role** | Multi-turn interview using ABCDE protocol and red flag screening |
-| **Model** | `medgemma-1.5` (local) — clinical reasoning |
+| **Model** | `medgemma-1.0:4b` via Ollama (local) — clinical reasoning |
 | **Inputs** | `chief_complaint`, `detected_language`, `session_history` |
 | **Outputs** | `structured_symptoms`, `abcde_assessment`, `red_flags`, `severity`, `questioning_complete` |
 | **Tools** | `abcde_protocol_checklist`, `red_flag_screener`, `severity_scale` |
@@ -192,7 +192,7 @@ class ClinicalQuestioningAgent(BaseAgent):
 | Field | Value |
 |-------|-------|
 | **Role** | Analyzes uploaded symptom photos — describes, does not diagnose |
-| **Model** | `medgemma-1.5` (local, multimodal) — medical image understanding |
+| **Model** | `medgemma-1.0:4b` via Ollama (local, multimodal) — medical image understanding |
 | **Inputs** | `image_data` (base64), `chief_complaint`, `structured_symptoms` |
 | **Outputs** | `visual_observations`, `consistency_with_symptoms`, `image_description_for_report` |
 | **Tools** | None (uses multimodal LLM directly) |
@@ -237,7 +237,7 @@ class VisualInterpretationAgent(BaseAgent):
 | Field | Value |
 |-------|-------|
 | **Role** | Assigns RED/YELLOW/GREEN triage using deterministic matrix + LLM rationale |
-| **Model** | `medgemma-1.5` (local) — rationale only, color is deterministic |
+| **Model** | `medgemma-1.0:4b` via Ollama (local) — rationale only, color is deterministic |
 | **Inputs** | `structured_symptoms`, `red_flags`, `abcde_assessment`, `visual_observations`, `severity` |
 | **Outputs** | `TriageResult` (color, rationale, facility_type_needed, urgency_description) |
 | **Tools** | `triage_decision_matrix` (deterministic, rule-based) |
@@ -280,7 +280,7 @@ class TriageClassificationAgent(BaseAgent):
 | Field | Value |
 |-------|-------|
 | **Role** | Finds appropriate nearby facilities using Google Maps |
-| **Model** | `medgemma-1.5` (local) — facility selection logic |
+| **Model** | `medgemma-1.0:4b` via Ollama (local) — facility selection logic |
 | **Inputs** | `triage_color`, `facility_type_needed`, `patient_location` |
 | **Outputs** | `facilities` (ranked list), `directions` to top facility, `map_url` |
 | **Tools** | `google_places_search`, `google_directions`, `facility_filter` |
@@ -310,6 +310,15 @@ class CareNavigationAgent(BaseAgent):
             keyword=config["keyword"],
             open_now=True,
         )
+
+        # Fallback: if open_now=True returns no results, retry without the filter
+        if not raw_results:
+            raw_results = await self.maps_client.places_nearby(
+                location=(session.patient_location.latitude, session.patient_location.longitude),
+                radius=config["radius"],
+                type=config["types"][0],
+                keyword=config["keyword"],
+            )
 
         facilities = self._rank_facilities(raw_results, session.patient_location)
         directions = await self._get_directions(session.patient_location, facilities[0])
@@ -400,7 +409,7 @@ class ClinicianReportAgent(BaseAgent):
 | Field | Value |
 |-------|-------|
 | **Role** | Cross-cutting validator — checks every stage output |
-| **Model** | `medgemma-1.5` (local) — safety validation |
+| **Model** | `medgemma-1.0:4b` via Ollama (local) — safety validation |
 | **Inputs** | Stage output + current `SessionState` |
 | **Outputs** | `SafetyCheckResult` (approved/issues/corrective_action) |
 | **Tools** | `disclaimer_checker`, `red_flag_validator`, `diagnostic_language_detector` |
@@ -653,7 +662,7 @@ class BaseAgent(ABC):
     stage: Stage  # Which pipeline stage this agent handles
 
     def __init__(self, medgemma: "MedGemmaClient", config: "AppConfig"):
-        self.medgemma = medgemma  # Local MedGemma 1.5 for clinical reasoning + translation
+        self.medgemma = medgemma  # Local MedGemma 1.0:4b via Ollama for clinical reasoning + translation
         self.config = config
 
     @abstractmethod
@@ -816,6 +825,7 @@ ai_health_guide/
         questioning_agent.py        # Agent 3: Clinical Questioning
         visual_agent.py             # Agent 4: Visual Interpretation
         triage_agent.py             # Agent 5: Triage Classification
+        navigation_agent.py         # Agent 6: Care Navigation (Google Maps)
         patient_report_agent.py     # Agent 7: Patient Report (GPT-4o)
         clinician_report_agent.py   # Agent 8: Clinician Report (GPT-4o)
         safety_guardian.py          # Agent 9: Safety Guardian
@@ -825,6 +835,7 @@ ai_health_guide/
         abcde_protocol.py           # ABCDE checklist logic
         red_flag_screening.py       # Red flag database + matcher
         triage_matrix.py            # Deterministic triage rules
+        google_maps.py              # Google Maps Places + Directions API wrapper (active)
         soap_formatter.py           # SOAP note enforcer
         disclaimer_checker.py       # Safety disclaimer validation
     models/
@@ -838,6 +849,7 @@ ai_health_guide/
         questioning.txt
         visual.txt
         triage.txt
+        navigation.txt
         patient_report.txt
         clinician_report.txt
         safety_guardian.txt
