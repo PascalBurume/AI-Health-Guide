@@ -73,11 +73,11 @@ Patient Input
 |-----------|------|--------------|
 | **Python 3.11+** | Language | Async ecosystem (`asyncio`), ML library coverage, Pydantic native |
 | **FastAPI** | API framework | Async-native, Pydantic v2 integration, auto OpenAPI docs, rich middleware ecosystem |
-| **MedGemma 1.5** (local) | Clinical LLM | All clinical reasoning, translation, multilingual generation, image analysis — patient data never leaves the premises |
+| **MedGemma 1.0:4b** (local via Ollama) | Clinical LLM | All clinical reasoning, translation, multilingual generation, image analysis — patient data never leaves the premises |
 | **OpenAI Whisper** (cloud) | Speech-to-text | Best-in-class multilingual STT; only non-identifiable audio bytes hit the cloud |
 | **OpenAI TTS** (cloud) | Text-to-speech | Patient report read-aloud in patient's language; no PHI in audio response |
 | **Redis** (Docker container) | Session persistence | TTL-based auto-expiry (30 min), fast read/write, pub/sub for future SSE upgrade |
-| **PyTorch + Hugging Face Transformers** | Local inference | MedGemma model loading, GPU acceleration (CUDA/MPS/CPU) |
+| **Ollama** | Local inference | MedGemma model serving, GPU acceleration (CUDA/MPS/CPU) |
 | **Pydantic v2** | Data validation | Shared data contract between backend models and frontend TypeScript types |
 | **pydantic-settings** | Configuration | Typed `.env` loading for `AppConfig` |
 | **lingua** | Language detection | Offline — no API call, no external data transfer |
@@ -92,7 +92,7 @@ Patient Input
 | **Tailwind CSS 3** | Styling | Utility-first; RTL via logical properties (`ms-`, `me-`); triage color tokens; rapid prototyping |
 | **Zustand** | State management | Lightweight single store, no provider nesting, SSR compatible |
 | **next-intl** | Internationalization | App Router integration, per-language message bundles, RTL direction switching |
-| **@vis.gl/react-google-maps** | Maps | Official Google-maintained React wrapper |
+| **leaflet + react-leaflet** | Maps | Open-source map rendering for NearbyFacilities component; external Google Maps links for directions |
 | **@react-pdf/renderer** | PDF export | Client-side downloadable patient report — no server round-trip |
 | **Native MediaRecorder API** | Voice recording | No extra library; WebM/Opus (Chrome) + MP4 fallback (Safari/iOS) |
 | **lucide-react** | Icons | MIT, tree-shakable; accessible icon set |
@@ -104,19 +104,21 @@ Patient Input
 | Technology | Role | Justification |
 |-----------|------|--------------|
 | **Redis** (Docker container) | Session store | TTL-based auto-expiry, stateless backend path for future horizontal scaling |
-| **Local GPU server** | Inference host | MedGemma 1.5 requires CUDA/MPS; all patient data stays on-premise |
+| **Local GPU server** | Inference host | MedGemma 1.0:4b via Ollama requires CUDA/MPS; all patient data stays on-premise |
 | **Docker Compose** (future) | Containerization | Reproducible deployment: backend + frontend + Redis orchestrated as a single unit |
 
 ### 2.4 Model Responsibility Split
 
 | Responsibility | Model | Location |
 |---------------|-------|----------|
-| Clinical reasoning (ABCDE, red flags) | MedGemma 1.5 | Local GPU |
-| Multilingual generation + translation | MedGemma 1.5 | Local GPU |
-| Patient + clinician report generation | MedGemma 1.5 | Local GPU |
-| Medical image analysis | MedGemma 1.5 | Local GPU |
-| Triage rationale | MedGemma 1.5 | Local GPU |
-| Safety validation | MedGemma 1.5 | Local GPU |
+| Clinical reasoning (ABCDE, red flags) | MedGemma 1.0:4b | Local (Ollama) |
+| Multilingual generation + translation | MedGemma 1.0:4b | Local (Ollama) |
+| Medical image analysis | MedGemma 1.0:4b | Local (Ollama) |
+| Triage rationale | MedGemma 1.0:4b | Local (Ollama) |
+| Safety validation | MedGemma 1.0:4b | Local (Ollama) |
+| Patient report generation | OpenAI GPT-4o | Cloud API |
+| Clinician report generation (SOAP) | OpenAI GPT-4o | Cloud API |
+| Report translation | OpenAI GPT-4o | Cloud API |
 | Speech-to-text (patient voice input) | OpenAI Whisper | Cloud API |
 | Text-to-speech (report read-aloud) | OpenAI TTS | Cloud API |
 
@@ -135,7 +137,7 @@ ai_health_guide/
 │
 ├── clients/
 │   ├── __init__.py
-│   ├── medgemma_client.py          # MedGemma 1.5 local inference wrapper
+│   ├── medgemma_client.py          # MedGemma 1.0:4b via Ollama inference wrapper
 │   ├── redis_client.py             # Redis session store (read/write/TTL)
 │   ├── voice_input.py              # OpenAI Whisper speech-to-text
 │   └── voice_output.py             # OpenAI TTS text-to-speech
@@ -195,128 +197,81 @@ ai-health-guide-frontend/
 ├── package.json
 ├── tsconfig.json
 ├── tailwind.config.ts              # RTL support, triage color tokens, large tap-size utilities
-├── next.config.ts
-├── .env.local                      # NEXT_PUBLIC_GOOGLE_MAPS_API_KEY, BACKEND_URL
+├── next.config.mjs
+├── postcss.config.mjs
+├── next-env.d.ts
 │
-├── public/
-│   ├── flags/                      # en.svg, fr.svg, ja.svg, ar.svg, sw.svg, es.svg
-│   ├── icons/logo.svg
-│   └── manifest.json               # PWA manifest
+├── app/
+│   ├── layout.tsx                  # Root: RTL direction, fonts, providers
+│   ├── page.tsx                    # Entry: renders HomePage or consultation flow (showHome state)
+│   ├── globals.css                 # Tailwind base + triage design tokens + RTL overrides
+│   │
+│   ├── api/sessions/               # BFF proxy routes (all proxy to Python FastAPI)
+│   │   ├── route.ts                # POST: create session
+│   │   └── [id]/
+│   │       ├── route.ts            # GET: poll session state
+│   │       ├── message/route.ts    # POST: send text message
+│   │       ├── voice/route.ts      # POST: upload audio for STT
+│   │       ├── image/route.ts      # POST: upload symptom image
+│   │       └── location/route.ts   # POST: submit GPS coordinates
+│   │
+│   └── fonts/                      # Local font files
 │
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx              # Root: RTL direction, fonts, providers
-│   │   ├── page.tsx                # Entry: redirect to /session/new or welcome
-│   │   ├── globals.css             # Tailwind base + triage design tokens + RTL overrides
-│   │   │
-│   │   ├── session/
-│   │   │   └── [id]/
-│   │   │       ├── layout.tsx      # Session shell: Header + ProgressStepper + Footer
-│   │   │       └── page.tsx        # Stage router: reads currentStage, renders stage component
-│   │   │
-│   │   └── api/session/            # BFF proxy routes (all proxy to Python FastAPI)
-│   │       ├── route.ts            # POST: create session
-│   │       └── [id]/
-│   │           ├── route.ts        # GET: poll session state
-│   │           ├── message/route.ts
-│   │           ├── voice/route.ts
-│   │           ├── image/route.ts
-│   │           ├── location/route.ts
-│   │           └── report/
-│   │               ├── route.ts    # GET: final reports
-│   │               └── tts/route.ts # GET: stream TTS audio
+├── components/
+│   ├── home/
+│   │   └── HomePage.tsx            # Landing page: hero, features, how-it-works, agent orchestration
+│   │                               #   animation (3 patient scenarios), testimonials, about/trust, footer
 │   │
-│   ├── components/
-│   │   ├── shell/
-│   │   │   ├── AppHeader.tsx
-│   │   │   ├── ProgressStepper.tsx
-│   │   │   ├── Footer.tsx
-│   │   │   └── LanguageSwitcher.tsx
-│   │   │
-│   │   ├── stages/
-│   │   │   ├── WelcomeIntake.tsx   # Stage 1: language cards + initial prompt
-│   │   │   ├── ClinicalChat.tsx    # Stage 2: multi-turn chat interface
-│   │   │   ├── ImageReview.tsx     # Stage 3: image upload + analysis status
-│   │   │   ├── TriageResult.tsx    # Stage 4: triage card + facility + map
-│   │   │   └── ReportView.tsx      # Stage 5: tabbed report + actions
-│   │   │
-│   │   ├── chat/
-│   │   │   ├── MessageList.tsx
-│   │   │   ├── MessageBubble.tsx   # RTL-aware alignment (patient ↔ agent)
-│   │   │   ├── ChatInputBar.tsx
-│   │   │   ├── TypingIndicator.tsx
-│   │   │   ├── VoiceRecordButton.tsx # 56px, pulsing red ring when recording
-│   │   │   └── ImageUploadButton.tsx
-│   │   │
-│   │   ├── triage/
-│   │   │   ├── TriageCard.tsx      # Full-width RED/YELLOW/GREEN color card
-│   │   │   ├── FacilityCard.tsx    # Name, distance, rating, directions
-│   │   │   ├── MapEmbed.tsx        # Google Map + marker + route polyline
-│   │   │   └── LocationPermissionPrompt.tsx
-│   │   │
-│   │   ├── report/
-│   │   │   ├── PatientReportCard.tsx
-│   │   │   ├── ClinicianReportCard.tsx # Collapsible SOAP sections
-│   │   │   ├── ReportActions.tsx
-│   │   │   ├── ReadAloudButton.tsx
-│   │   │   └── ReportPDF.tsx
-│   │   │
-│   │   └── ui/
-│   │       ├── Button.tsx
-│   │       ├── Card.tsx
-│   │       ├── Badge.tsx
-│   │       ├── Spinner.tsx
-│   │       └── DisclaimerBanner.tsx # Non-dismissible, always visible
+│   ├── shell/
+│   │   ├── Header.tsx              # App header with onGoHome callback (logo click returns to HomePage)
+│   │   ├── StageProgressBar.tsx    # Pipeline progress indicator
+│   │   └── AgentActivityPanel.tsx  # Real-time agent processing status (visual/triage/report agents)
 │   │
-│   ├── stores/
-│   │   ├── sessionStore.ts         # Session state, messages, stage, triage, reports
-│   │   └── uiStore.ts              # Language, RTL direction, recording state
+│   ├── stages/
+│   │   ├── WelcomeScreen.tsx       # Welcome + disclaimer acceptance
+│   │   ├── IntakeScreen.tsx        # Language cards + initial complaint
+│   │   └── ImageUploadScreen.tsx   # Image upload + analysis status
 │   │
-│   ├── hooks/
-│   │   ├── useSession.ts           # Polling logic (1.5s while isAgentTyping)
-│   │   ├── useVoiceRecorder.ts     # MediaRecorder lifecycle + state machine
-│   │   ├── useGeolocation.ts       # GPS permission + coordinates
-│   │   ├── useAudioPlayer.ts       # TTS playback controls
-│   │   └── useAutoScroll.ts        # Auto-scroll chat on new message
+│   ├── chat/
+│   │   ├── ChatWindow.tsx          # Multi-turn chat interface with message list + input
+│   │   └── ChatInputBar.tsx        # Text input + voice + image upload buttons
 │   │
-│   ├── lib/
-│   │   ├── api.ts                  # Typed fetch wrapper for BFF routes
-│   │   ├── audioRecorder.ts        # MediaRecorder state machine (idle→recording→processing)
-│   │   ├── audioPlayer.ts          # Audio playback for TTS streams
-│   │   ├── geolocation.ts          # navigator.geolocation wrapper
-│   │   ├── imageCompressor.ts      # Client-side resize to max 2MB before upload
-│   │   └── constants.ts            # Languages, triage colors, stage names
+│   ├── triage/
+│   │   └── TriageCard.tsx          # Full-width RED/YELLOW/GREEN color card
 │   │
-│   ├── types/
-│   │   ├── session.ts              # TypeScript mirrors of backend Pydantic models
-│   │   └── api.ts                  # BFF request/response shapes
+│   ├── report/
+│   │   ├── ReportView.tsx          # Tabbed Patient/Clinician report view
+│   │   ├── PatientReportDocument.tsx  # @react-pdf/renderer patient report PDF
+│   │   ├── TranslatedReportDocument.tsx  # Translated report PDF
+│   │   └── NearbyFacilities.tsx    # Geolocation + Google Maps facility search + external direction links
 │   │
-│   └── i18n/
-│       ├── config.ts               # next-intl configuration
-│       └── messages/
-│           ├── en.json
-│           ├── fr.json
-│           ├── ja.json
-│           ├── ar.json
-│           ├── sw.json
-│           └── es.json
+│   └── ui/
+│       ├── Button.tsx
+│       ├── Card.tsx
+│       ├── Spinner.tsx
+│       └── TriageBadge.tsx
 │
-└── tests/
-    ├── unit/
-    │   ├── stores/
-    │   │   ├── sessionStore.test.ts
-    │   │   └── uiStore.test.ts
-    │   └── hooks/
-    │       ├── useVoiceRecorder.test.ts
-    │       └── useGeolocation.test.ts
-    ├── integration/
-    │   ├── ClinicalChat.test.tsx
-    │   ├── TriageResult.test.tsx
-    │   └── ReportView.test.tsx
-    └── e2e/
-        ├── full-flow.spec.ts
-        ├── rtl-arabic.spec.ts
-        └── voice-input.spec.ts
+├── hooks/
+│   ├── useCreateSession.ts         # Session creation logic
+│   └── useSessionPolling.ts        # Polling logic (1.5s while isAgentTyping)
+│
+├── lib/
+│   ├── proxy.ts                    # BFF proxy utility for forwarding to FastAPI
+│   └── utils.ts                    # cn() utility (clsx + tailwind-merge)
+│
+├── store/
+│   └── index.ts                    # Zustand store: SessionStore + UIStore (showHome, language, stage)
+│
+├── types/
+│   └── session.ts                  # TypeScript mirrors of backend Pydantic models
+│
+└── messages/                       # i18n message bundles (next-intl)
+    ├── en.json
+    ├── fr.json
+    ├── ja.json
+    ├── ar.json
+    ├── sw.json
+    └── es.json
 ```
 
 ---
@@ -569,10 +524,10 @@ class SafetyCheckResult(BaseModel):
 
 ### 4.3 TypeScript Mirrors (Frontend)
 
-The frontend `src/types/session.ts` mirrors all Pydantic models above. The canonical source is always the Python models — TypeScript types are derived, never invented.
+The frontend `types/session.ts` mirrors all Pydantic models above. The canonical source is always the Python models — TypeScript types are derived, never invented.
 
 ```typescript
-// src/types/session.ts
+// types/session.ts
 export type Stage = 'intake' | 'questioning' | 'visual' | 'triage' | 'navigation' | 'report' | 'complete';
 export type TriageColor = 'RED' | 'YELLOW' | 'GREEN';
 export type MessageRole = 'patient' | 'agent' | 'system';
@@ -649,23 +604,27 @@ export interface SessionState {
 ### Flow 1 — Happy Path (Text Input)
 
 ```
-Patient arrives at clinic URL
-  └─► Screen 1: Language Selection
-        6 large flag cards (EN / FR / JA / AR / SW / ES)
-        Tap → POST /api/session { language } → receives sessionId
-        └─► Screen 2: Clinical Chat (Stage 2)
-              Agent greets in detected language
-              Multi-turn Q&A: 3–15 turns (ABCDE + Red Flag screening)
-              └─► Screen 3: Image Upload (Stage 3) — optional
-                    Patient uploads/skips
-                    Visual agent describes (never diagnoses)
-                    └─► Screen 4: Triage + Navigation (Stage 4)
-                          Deterministic matrix assigns RED / YELLOW / GREEN
-                          Geolocation requested → ranked facility list → Google Map
-                          └─► Screen 5: Report View (Stage 5)
-                                Patient tab (plain language, patient's language)
-                                Clinician tab (SOAP note, English)
-                                [ Listen ] [ Download PDF ] [ Print ]
+Patient arrives at app URL
+  └─► HomePage: Landing page with hero, features, agent orchestration animation
+        "Start Health Assessment" CTA button
+        └─► Screen 1: Welcome + Disclaimer acceptance
+              └─► Screen 2: Language Selection + Chief Complaint (Intake)
+                    6 language options (EN / FR / JA / AR / SW / ES)
+                    POST /api/sessions { language, complaint } → receives sessionId
+                    └─► Screen 3: Clinical Chat (Stage 2)
+                          Agent greets in detected language
+                          Multi-turn Q&A: 3–15 turns (ABCDE + Red Flag screening)
+                          └─► Screen 4: Image Upload (Stage 3) — optional
+                                Patient uploads/skips
+                                Visual agent describes (never diagnoses)
+                                └─► Screen 5: Triage + Navigation (Stage 4)
+                                      Deterministic matrix assigns RED / YELLOW / GREEN
+                                      AgentActivityPanel shows real-time processing status
+                                      └─► Screen 6: Report View (Stage 5)
+                                            Patient tab (plain language, patient's language)
+                                            Clinician tab (SOAP note, English)
+                                            NearbyFacilities: geolocation → ranked facilities → external Google Maps links
+                                            [ Download PDF ] [ Start New ]
 ```
 
 ### Flow 2 — Voice Input
@@ -696,7 +655,7 @@ Patient taps camera button
               imageCompressor.ts resizes to max 2MB (quality-preserving)
               POST FormData to /api/session/[id]/image
               Image thumbnail shown → spinner overlay → "Analyzing..."
-              └─► Visual Interpretation Agent (MedGemma 1.5 multimodal)
+              └─► Visual Interpretation Agent (MedGemma 1.0:4b multimodal)
                     Describes: color, size, shape, texture, location on body
                     Checks: consistency with stated symptoms
                     Output: visual_observations[] appended to SessionState
@@ -742,15 +701,14 @@ Patient message contains suicidal ideation keywords
 ### Flow 6 — Geolocation Denied
 
 ```
-Stage 4: LocationPermissionPrompt shown
+Report View: NearbyFacilities component requests geolocation
   └─► Patient denies geolocation (or browser blocks)
-        useGeolocation returns error
-        └─► Fallback UI:
-              Patient manually types location or clinic address
-              "Open in Google Maps" link:
-              https://www.google.com/maps/search/?api=1&query_place_id={place_id}
-              Map embed hidden → replaced with text address card
-              Directions: "Ask clinic staff for assistance"
+        ├─ Denied → NearbyFacilities section shows "Skip" option
+        └─ Granted → Google Maps Places API searched via backend
+              Ranked facility cards displayed with:
+                External Google Maps direction links (not embedded map)
+                "Get Directions" opens google.com/maps in new tab
+              If no facilities found → "No nearby facilities found" message
 ```
 
 ### Flow 7 — RTL Layout (Arabic)
@@ -876,8 +834,8 @@ class RedisSessionClient:
 ## 8. Security Considerations
 
 ### Data Privacy
-- All clinical reasoning (MedGemma 1.5) runs **locally** — patient symptom data, images, and reports never leave the server.
-- Only **audio bytes** go to OpenAI (Whisper/TTS) — no patient identifiers are included.
+- All clinical reasoning (MedGemma 1.0:4b via Ollama) runs **locally** — patient symptom data, images, and reports never leave the server.
+- Only **audio bytes** go to OpenAI (Whisper/TTS) and **de-identified clinical data** to OpenAI GPT-4o (report generation/translation) — no patient identifiers are included.
 - Redis sessions expire automatically after 30 minutes (no persistent patient records in MVP).
 - Application logs contain `session_id` only — no symptom content, no names.
 
@@ -1062,15 +1020,15 @@ class RedisSessionClient:
 
 | # | Agent | Stage | Model | Key Output |
 |---|-------|-------|-------|-----------|
-| 1 | **Session Orchestrator** | All | MedGemma 1.5 | Drives pipeline; manages `SessionState` |
-| 2 | **Intake Agent** | `intake` | MedGemma 1.5 | `detected_language`, `chief_complaint`, `chief_complaint_english` |
-| 3 | **Clinical Questioning Agent** | `questioning` | MedGemma 1.5 | `structured_symptoms`, `abcde_assessment`, `red_flags`, `severity` |
-| 4 | **Visual Interpretation Agent** | `visual` | MedGemma 1.5 (multimodal) | `visual_observations`, `consistency_with_symptoms` |
-| 5 | **Triage Classification Agent** | `triage` | MedGemma 1.5 + deterministic matrix | `TriageResult` (color always from matrix) |
-| 6 | **Care Navigation Agent** | `navigation` | MedGemma 1.5 + Google Maps | `facilities[]`, `directions`, `map_url` |
-| 7 | **Patient Report Agent** | `report` | MedGemma 1.5 | `PatientReport` in `patient_language` |
-| 8 | **Clinician Report Agent** | `report` | MedGemma 1.5 | `SOAPNote` in `clinical_language` |
-| 9 | **Safety Guardian** | Cross-cutting | MedGemma 1.5 | `SafetyCheckResult` at every stage boundary |
+| 1 | **Session Orchestrator** | All | MedGemma 1.0:4b | Drives pipeline; manages `SessionState` |
+| 2 | **Intake Agent** | `intake` | MedGemma 1.0:4b | `detected_language`, `chief_complaint`, `chief_complaint_english` |
+| 3 | **Clinical Questioning Agent** | `questioning` | MedGemma 1.0:4b | `structured_symptoms`, `abcde_assessment`, `red_flags`, `severity` |
+| 4 | **Visual Interpretation Agent** | `visual` | MedGemma 1.0:4b (multimodal) | `visual_observations`, `consistency_with_symptoms` |
+| 5 | **Triage Classification Agent** | `triage` | MedGemma 1.0:4b + deterministic matrix | `TriageResult` (color always from matrix) |
+| 6 | **Care Navigation Agent** | `navigation` | MedGemma 1.0:4b + Google Maps | `facilities[]`, `directions`, `map_url` |
+| 7 | **Patient Report Agent** | `report` | OpenAI GPT-4o | `PatientReport` in `patient_language` |
+| 8 | **Clinician Report Agent** | `report` | OpenAI GPT-4o | `SOAPNote` in `clinical_language` |
+| 9 | **Safety Guardian** | Cross-cutting | MedGemma 1.0:4b | `SafetyCheckResult` at every stage boundary |
 
 ---
 
