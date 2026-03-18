@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-The AI Health Guide front-end is a **mobile-first web application** that guides patients through a 5-stage clinical intake pipeline. It connects to the Python backend (MedGemma 1.5 local + OpenAI voice) via a Next.js BFF (Backend-for-Frontend) proxy layer.
+The AI Health Guide front-end is a **mobile-first web application** that guides patients through a 5-stage clinical intake pipeline. It includes a full **landing home page** with hero, feature showcase, agent orchestration animation, and testimonials. It connects to the Python backend (MedGemma 1.0:4b via Ollama + OpenAI GPT-4o for reports/voice) via a Next.js BFF (Backend-for-Frontend) proxy layer.
 
 **Design principles:**
 - Patients use this on their phones at clinic check-in, often under stress
@@ -24,7 +24,7 @@ The AI Health Guide front-end is a **mobile-first web application** that guides 
 | Styling | **Tailwind CSS 3** | Utility-first; RTL via logical properties (`ms-`, `me-`); rapid prototyping |
 | State | **Zustand** | Lightweight single-store; no provider nesting; SSR compatible |
 | Internationalization | **next-intl** | App Router integration; RTL direction switching; per-language message bundles |
-| Maps | **@vis.gl/react-google-maps** | Official Google-maintained React wrapper |
+| Maps | **leaflet + react-leaflet** | Lightweight mapping library (installed); facility directions via external Google Maps links |
 | Audio Recording | **Native MediaRecorder API** | No library needed; WebM/Opus (Chrome) + MP4 fallback (Safari) |
 | PDF Generation | **@react-pdf/renderer** | Client-side downloadable patient report |
 | Icons | **lucide-react** | MIT, tree-shakable; mic, camera, map-pin, flag icons |
@@ -35,22 +35,23 @@ The AI Health Guide front-end is a **mobile-first web application** that guides 
 ```json
 {
   "dependencies": {
-    "next": "^14.0.0",
+    "next": "14.2.35",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
-    "zustand": "^4.5.0",
-    "next-intl": "^3.0.0",
-    "@vis.gl/react-google-maps": "^1.0.0",
-    "@react-pdf/renderer": "^3.0.0",
-    "lucide-react": "^0.400.0"
+    "zustand": "^5.0.12",
+    "next-intl": "^4.8.3",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^4.2.1",
+    "@react-pdf/renderer": "^4.3.2",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
-    "tailwindcss": "^3.4.0",
+    "tailwindcss": "^3.4.1",
     "@types/react": "^18.0.0",
-    "vitest": "^1.0.0",
-    "@testing-library/react": "^14.0.0",
-    "playwright": "^1.40.0"
+    "vitest": "^4.1.0",
+    "@playwright/test": "^1.58.2"
   }
 }
 ```
@@ -84,57 +85,91 @@ The AI Health Guide front-end is a **mobile-first web application** that guides 
 ## 4. Component Hierarchy
 
 ```
-AppShell
-├── Header
-│   ├── LanguageSwitcher (flag icons, always visible)
-│   └── ProgressStepper (stages 1-5 with labels: Intake · Assessment · Triage · Report · Done)
+AppShell (page.tsx — conditional rendering based on showHome state)
 │
-├── Main Content Area (switches by currentStage)
-│   │
-│   ├── [Stage 1] WelcomeIntake
-│   │   ├── LanguageSelector (6 large flag cards)
-│   │   └── InitialPrompt (greeting + text area)
-│   │
-│   ├── [Stage 2] ClinicalChat
-│   │   ├── MessageList
-│   │   │   ├── MessageBubble (patient | agent, RTL-aware alignment)
-│   │   │   └── TypingIndicator (3 animated dots)
-│   │   └── ChatInputBar
-│   │       ├── TextInput (auto-growing textarea)
-│   │       ├── VoiceRecordButton (hold-to-record or toggle)
-│   │       ├── ImageUploadButton (camera/gallery)
-│   │       └── SendButton
-│   │
-│   ├── [Stage 3] ImageReview (conditional — inline in chat or standalone)
-│   │   ├── ImagePreview (uploaded thumbnail)
-│   │   ├── ImageAnalysisStatus (spinner → result)
-│   │   └── SkipButton
-│   │
-│   ├── [Stage 4] TriageResult
-│   │   └── TriageCard (RED/YELLOW/GREEN, full-width color)
-│   │       ├── TriageIcon (severity icon)
-│   │       ├── UrgencyText (plain-language explanation)
-│   │       ├── ActionSteps (numbered list)
-│   │       └── ListenButton (TTS for triage summary)
-│   │
-│   └── [Stage 5] ReportView
-│       ├── ReportTabs (Patient Report | Clinician Report)
-│       ├── PatientReportCard
-│       │   └── ReportSection × 4 (Summary, Next Steps, Facility, What to Tell Doctor)
-│       ├── ClinicianReportCard (SOAP sections, collapsible)
-│       ├── DisclaimerBanner
-│       ├── ReportActions
-│       │   ├── ListenButton (TTS for original report)
-│       │   └── DownloadPDFButton (PatientReportDocument)
-│       └── TranslateSection
-│           ├── LanguagePicker (excludes report language)
-│           ├── TranslatedReportCard
-│           ├── ListenButton (TTS for translated text)
-│           └── DownloadPDFButton (TranslatedReportDocument)
+├── [showHome === true] HomePage
+│   ├── Navbar (logo + "Start Consultation" / "Resume" CTA)
+│   ├── Hero Section (headline, subtext, CTA buttons)
+│   ├── Features Section (5 feature cards: Multilingual, Triage, Hospitals, Reports, Voice)
+│   ├── How It Works (4-step visual flow)
+│   ├── "Under the Hood" Agent Orchestration Section
+│   │   ├── AgentPipeline (scenario-driven animation cycling 3 patient personas)
+│   │   │   ├── Scenario carousel (Mrs. Chen/72, David/34, Aiko/21)
+│   │   │   ├── Typewriter effect for patient messages
+│   │   │   ├── Agent cards (7 agents with micro-outputs)
+│   │   │   ├── Safety Guardian status bar
+│   │   │   └── Triage result card (RED/YELLOW/GREEN)
+│   │   └── Architecture callouts (agent cards with descriptions)
+│   ├── Testimonials Section (3 user quotes)
+│   ├── About/Trust Section (mission, trust badges)
+│   └── Footer (links, copyright, disclaimer)
 │
-└── Footer
-    ├── DisclaimerText (persistent, minimal)
-    └── SessionTimer (elapsed time)
+├── [showHome === false, no session] WelcomeScreen
+│   ├── LanguageSelector (6 large flag cards)
+│   └── Disclaimer acceptance
+│
+├── [Session active] Main Layout
+│   ├── Header
+│   │   ├── Logo (clickable → onGoHome, returns to HomePage)
+│   │   ├── Stage badge
+│   │   ├── Locale badge
+│   │   └── "New Consultation" button
+│   ├── StageProgressBar (stages 1-5 with labels)
+│   │
+│   └── Main Content Area (switches by currentStage)
+│       │
+│       ├── [Stage 1] Intake
+│       │   └── ChatWindow + ChatInputBar
+│       │
+│       ├── [Stage 2] ClinicalChat
+│       │   ├── MessageList
+│       │   │   ├── MessageBubble (patient | agent, RTL-aware alignment)
+│       │   │   └── TypingIndicator (3 animated dots)
+│       │   └── ChatInputBar
+│       │       ├── TextInput (auto-growing textarea)
+│       │       ├── VoiceRecordButton (hold-to-record or toggle)
+│       │       ├── ImageUploadButton (camera/gallery)
+│       │       └── SendButton
+│       │
+│       ├── [Stage 3] ImageUploadScreen (optional)
+│       │   ├── ImagePreview (uploaded thumbnail)
+│       │   ├── ImageAnalysisStatus (spinner → result)
+│       │   └── SkipButton
+│       │
+│       ├── [Processing] AgentActivityPanel
+│       │   ├── Visual Agent status (pending/active/done)
+│       │   ├── Triage Agent status
+│       │   ├── Report Agents status
+│       │   └── Safety Guardian bar
+│       │
+│       ├── [Stage 4] TriageResult
+│       │   └── TriageCard (RED/YELLOW/GREEN, full-width color)
+│       │       ├── TriageIcon (severity icon)
+│       │       ├── UrgencyText (plain-language explanation)
+│       │       ├── ActionSteps (numbered list)
+│       │       └── ListenButton (TTS for triage summary)
+│       │
+│       └── [Stage 5] ReportView
+│           ├── ReportTabs (Patient Report | Clinician Report)
+│           ├── PatientReportCard
+│           │   └── ReportSection × 4 (Summary, Next Steps, Facility, What to Tell Doctor)
+│           ├── ClinicianReportCard (SOAP sections, collapsible)
+│           ├── NearbyFacilities
+│           │   ├── ShareLocation button (navigator.geolocation)
+│           │   ├── Facility cards (name, distance, rating, open status)
+│           │   ├── Google Maps direction links (external)
+│           │   └── Skip option
+│           ├── DisclaimerBanner
+│           ├── ReportActions
+│           │   ├── ListenButton (TTS for original report)
+│           │   └── DownloadPDFButton (PatientReportDocument)
+│           └── TranslateSection
+│               ├── LanguagePicker (excludes report language)
+│               ├── TranslatedReportCard
+│               ├── ListenButton (TTS for translated text)
+│               └── DownloadPDFButton (TranslatedReportDocument)
+│
+└── [Floating] Resume Banner (shown when hasActiveSession && showHome)
 ```
 
 **Stage transitions** are driven by the backend's `SessionState.current_stage` — the patient does not navigate manually. The orchestrator advances them.
@@ -246,17 +281,18 @@ AppShell
 │  │  within the next 24 hours.           │  │
 │  └──────────────────────────────────────┘  │
 │                                            │
-│  Recommended facility:                     │
+│  🏥 Nearby Facilities                      │
+│  ┌──────────────────────────────────────┐  │
+│  │ [📍 Share Location]                  │  │
+│  │  or [Skip →]                         │  │
+│  └──────────────────────────────────────┘  │
+│                                            │
+│  (After location shared:)                  │
 │  ┌──────────────────────────────────────┐  │
 │  │ City Urgent Care Clinic              │  │
 │  │ 1.2 km away  │  Rating: 4.5★        │  │
 │  │ ● Open now                           │  │
-│  │ [📍 Get Directions →]               │  │
-│  └──────────────────────────────────────┘  │
-│                                            │
-│  ┌──────────────────────────────────────┐  │
-│  │        [Google Map Embed]            │  │
-│  │   with route polyline + marker       │  │
+│  │ [📍 Get Directions → Google Maps]    │  │  ← external link
 │  └──────────────────────────────────────┘  │
 │                                            │
 │  [View your report →]                      │
@@ -272,7 +308,10 @@ AppShell
 | GREEN | `#16A34A` | White | ✅ Check | "Non-Urgent — Schedule Visit" |
 
 - RED triage: emergency banner with local emergency number at top
-- If geolocation denied: text address + "Open in Google Maps" link
+- Facility search: Google Maps Places API via backend, ranked by composite score (proximity 0.6 + rating 0.3 + open 0.1)
+- `open_now` fallback: tries open facilities first; if none found, searches all facilities
+- Direction links open Google Maps externally (no embedded map — Embed API not enabled)
+- If geolocation denied: skip option available; facility search not performed
 
 ### Screen 5: Report View (Stage 5)
 
@@ -378,16 +417,22 @@ interface UIStore {
   direction: 'ltr' | 'rtl';
   isRecording: boolean;
   audioPlayback: { isPlaying: boolean; progress: number };
+  showHome: boolean;           // Controls landing page visibility (default: true)
+  setShowHome: (show: boolean) => void;
 }
 ```
 
 ### State Flow
 
-1. Patient selects language → `uiStore.language` updates → `document.dir` changes
-2. First message → `sessionStore.createSession()` → POST to BFF → receives `sessionId`
-3. Each message (text/voice/image) → POST to BFF → start polling
-4. Poll `GET /api/session/[id]` every 1.5s while `isAgentTyping === true`
-5. Stage change in response → store updates → page renders new stage component
+1. App loads → `showHome === true` → **HomePage** rendered (landing page)
+2. Patient clicks "Start Consultation" → `setShowHome(false)` → WelcomeScreen shown
+3. Patient selects language → `uiStore.language` updates → `document.dir` changes
+4. First message → `sessionStore.createSession()` → POST to BFF → receives `sessionId`
+5. Each message (text/voice/image) → POST to BFF → start polling
+6. Poll `GET /api/session/[id]` every 2s while waiting for agent response
+7. Stage change in response → store updates → page renders new stage component
+8. Header logo click → `setShowHome(true)` → return to HomePage (session preserved)
+9. If active session exists: floating resume banner shown on HomePage
 
 ---
 
@@ -558,133 +603,107 @@ ai-health-guide-frontend/
 ├── package.json
 ├── tsconfig.json
 ├── tailwind.config.ts              # RTL, triage colors, large tap sizes
-├── next.config.ts
-├── .env.local                      # BACKEND_URL, NEXT_PUBLIC_APP_NAME
+├── next.config.mjs                 # Next.js configuration
+├── postcss.config.mjs
+├── .env.local                      # BACKEND_URL
 │
-├── public/
-│   ├── flags/                      # en.svg, fr.svg, ja.svg, ar.svg, sw.svg, es.svg
-│   ├── icons/logo.svg
-│   └── manifest.json               # PWA manifest
+├── app/
+│   ├── layout.tsx                  # Root layout (Geist fonts, metadata)
+│   ├── page.tsx                    # Main SPA: showHome → HomePage | session UI
+│   ├── globals.css                 # Tailwind base + custom styles
+│   │
+│   └── api/sessions/              # BFF proxy routes
+│       ├── route.ts               # POST: create session
+│       └── [id]/
+│           ├── route.ts           # GET: poll session state
+│           ├── messages/route.ts
+│           ├── voice/route.ts
+│           ├── image/route.ts
+│           ├── language/route.ts
+│           ├── location/route.ts
+│           ├── skip-location/route.ts
+│           └── report/
+│               ├── route.ts       # GET: reports
+│               ├── tts/route.ts   # GET: TTS audio stream
+│               └── translate/
+│                   ├── route.ts   # POST: translate report
+│                   └── tts/route.ts # POST: translated TTS
 │
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx              # Root: RTL direction, fonts, providers
-│   │   ├── page.tsx                # Entry: redirect to /session/new or welcome
-│   │   ├── globals.css             # Tailwind base + triage tokens + RTL overrides
-│   │   │
-│   │   ├── session/
-│   │   │   └── [id]/
-│   │   │       ├── layout.tsx      # Session shell: Header + ProgressStepper + Footer
-│   │   │       └── page.tsx        # Stage router: reads currentStage, renders component
-│   │   │
-│   │   └── api/session/            # BFF proxy routes
-│   │       ├── route.ts            # POST: create session
-│   │       └── [id]/
-│   │           ├── route.ts        # GET: poll session state
-│   │           ├── language/route.ts # PATCH: update session language
-│   │           ├── message/route.ts
-│   │           ├── voice/route.ts
-│   │           ├── image/route.ts
-│   │           └── report/
-│   │               ├── route.ts    # GET: reports
-│   │               ├── tts/route.ts # GET: TTS audio stream (original report)
-│   │               └── translate/
-│   │                   ├── route.ts     # POST: translate report to target language
-│   │                   └── tts/route.ts # POST: TTS for translated report text
-│   │
-│   ├── components/
-│   │   ├── shell/
-│   │   │   ├── AppHeader.tsx
-│   │   │   ├── ProgressStepper.tsx
-│   │   │   ├── Footer.tsx
-│   │   │   └── LanguageSwitcher.tsx
-│   │   │
-│   │   ├── stages/
-│   │   │   ├── WelcomeIntake.tsx
-│   │   │   ├── ClinicalChat.tsx
-│   │   │   ├── ImageReview.tsx
-│   │   │   ├── TriageResult.tsx
-│   │   │   └── ReportView.tsx
-│   │   │
-│   │   ├── chat/
-│   │   │   ├── MessageList.tsx
-│   │   │   ├── MessageBubble.tsx
-│   │   │   ├── ChatInputBar.tsx
-│   │   │   ├── TypingIndicator.tsx
-│   │   │   ├── VoiceRecordButton.tsx
-│   │   │   └── ImageUploadButton.tsx
-│   │   │
-│   │   ├── triage/
-│   │   │   └── TriageCard.tsx          # RED/YELLOW/GREEN triage display with Listen button
-│   │   │
-│   │   ├── report/
-│   │   │   ├── ReportView.tsx              # Patient + clinician tabs, translate section
-│   │   │   ├── PatientReportDocument.tsx   # PDF component for original report
-│   │   │   └── TranslatedReportDocument.tsx # PDF component for translated report
-│   │   │
-│   │   └── ui/
-│   │       ├── Button.tsx
-│   │       ├── Card.tsx
-│   │       ├── Badge.tsx
-│   │       ├── Spinner.tsx
-│   │       └── DisclaimerBanner.tsx
-│   │
-│   ├── stores/
-│   │   ├── sessionStore.ts         # Session state, messages, stage, triage, reports
-│   │   └── uiStore.ts              # Language, RTL direction, recording state
-│   │
-│   ├── hooks/
-│   │   ├── useSession.ts           # Poll/subscribe to session state
-│   │   ├── useVoiceRecorder.ts     # MediaRecorder lifecycle
-│   │   ├── useAudioPlayer.ts       # TTS playback controls
-│   │   └── useAutoScroll.ts        # Scroll chat on new message
-│   │
-│   ├── lib/
-│   │   ├── api.ts                  # Typed fetch wrapper for BFF routes
-│   │   ├── audioRecorder.ts        # MediaRecorder state machine
-│   │   ├── audioPlayer.ts          # Audio playback for TTS
-│   │   ├── imageCompressor.ts      # Client-side resize (max 2MB)
-│   │   └── constants.ts            # Languages, triage colors, stage names
-│   │
-│   ├── types/
-│   │   ├── session.ts              # TS mirrors of backend Pydantic models
-│   │   └── api.ts                  # Request/response shapes
-│   │
-│   └── i18n/
-│       ├── config.ts               # next-intl configuration
-│       └── messages/
-│           ├── en.json
-│           ├── fr.json
-│           ├── ja.json
-│           ├── ar.json
-│           ├── sw.json
-│           └── es.json
+├── components/
+│   ├── home/
+│   │   └── HomePage.tsx            # Full landing page (hero, features,
+│   │                               #   how-it-works, agent orchestration
+│   │                               #   with scenario animation, testimonials,
+│   │                               #   about/trust, footer)
+│   ├── shell/
+│   │   ├── Header.tsx              # Sticky header, stage badge, locale, go-home logo
+│   │   ├── StageProgressBar.tsx    # 5-step progress with labels
+│   │   └── AgentActivityPanel.tsx  # Real-time agent pipeline status during processing
+│   ├── chat/
+│   │   ├── ChatWindow.tsx          # Message list, auto-scroll, typing dots
+│   │   └── ChatInputBar.tsx        # Text + voice + language switcher
+│   ├── stages/
+│   │   ├── WelcomeScreen.tsx       # Language cards + disclaimer
+│   │   ├── IntakeScreen.tsx        # Loading spinner
+│   │   └── ImageUploadScreen.tsx   # Drag-drop + preview + skip
+│   ├── triage/
+│   │   └── TriageCard.tsx          # RED/YELLOW/GREEN triage display with Listen button
+│   ├── report/
+│   │   ├── ReportView.tsx          # Patient + clinician tabs, translate section
+│   │   ├── NearbyFacilities.tsx    # Geolocation + facility cards + Google Maps directions
+│   │   ├── PatientReportDocument.tsx  # PDF component for original report
+│   │   └── TranslatedReportDocument.tsx # PDF component for translated report
+│   └── ui/
+│       ├── Button.tsx              # 4 variants, 3 sizes
+│       ├── Card.tsx                # Header/Body/Footer composition
+│       ├── Spinner.tsx             # sm/md/lg animated
+│       └── TriageBadge.tsx         # Color pill + pulse for RED
 │
-└── tests/
-    ├── unit/
-    │   ├── stores/
-    │   │   ├── sessionStore.test.ts
-    │   │   └── uiStore.test.ts
-    │   └── hooks/
-    │       ├── useVoiceRecorder.test.ts
-    │       └── useAudioPlayer.test.ts
-    ├── integration/
-    │   ├── ClinicalChat.test.tsx
-    │   ├── TriageResult.test.tsx
-    │   └── ReportView.test.tsx
-    └── e2e/
-        ├── full-flow.spec.ts
-        ├── rtl-arabic.spec.ts
-        └── voice-input.spec.ts
+├── store/
+│   └── index.ts                    # useSessionStore (persisted sessionId) +
+│                                   #   useUIStore (locale, isRtl, showHome, viewStage)
+│
+├── hooks/
+│   ├── useCreateSession.ts         # Session creation
+│   └── useSessionPolling.ts        # 2s interval polling
+│
+├── lib/
+│   ├── proxy.ts                    # BFF request forwarding
+│   └── utils.ts                    # cn() — Tailwind class merge
+│
+├── types/
+│   └── session.ts                  # TS mirrors of backend Pydantic models
+│
+└── messages/                       # i18n translation bundles
+    ├── en.json
+    ├── fr.json
+    ├── es.json
+    ├── ar.json
+    ├── ja.json
+    └── sw.json
 ```
 
 ---
 
 ## 12. Care Navigation
 
-The Google Maps / geolocation navigation feature has been removed. Facility recommendation is provided as **text** within the patient report, generated by GPT-4o based on the triage classification.
+The care navigation feature uses **Google Maps Places API** via the Python backend (`google_maps.py`) to find nearby healthcare facilities based on the patient's triage level and GPS coordinates.
 
-Patients receive the facility type recommendation (emergency department / urgent care / clinic) as part of their report's `facility_recommendation` and `directions_summary` fields. No map rendering, geolocation permission, or Google Maps API key is required.
+### How It Works
+
+1. **NearbyFacilities** component (in ReportView) prompts the patient to share their location
+2. `navigator.geolocation.getCurrentPosition()` captures GPS coordinates
+3. Coordinates are POSTed to `/api/sessions/{id}/location` → backend calls Google Maps
+4. Backend `places_nearby()` searches with triage-aware parameters:
+   - **RED**: hospitals with "emergency" keyword, 5km radius
+   - **YELLOW**: hospitals/doctors with "urgent care" keyword, 10km radius
+   - **GREEN**: doctors/pharmacies with "clinic" keyword, 15km radius
+5. Results ranked by composite score: **proximity (0.6) + rating (0.3) + open status (0.1)**
+6. `open_now` fallback: tries open facilities first; if none found, searches all facilities
+7. Facility cards display name, distance, rating, open status, and an **external Google Maps direction link**
+8. Patient can skip location sharing entirely
+
+**Note:** Google Maps Embed API is not used — all direction links open in a new Google Maps tab/app. This avoids Embed API restrictions while still providing navigation.
 
 
 ## 13. Implementation Phases

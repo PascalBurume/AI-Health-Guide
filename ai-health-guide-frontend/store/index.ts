@@ -61,11 +61,13 @@ interface UISlice {
   isRtl: boolean;
   locale: string;
   viewStage: Stage | null;
+  showHome: boolean;
 
   setActivePanel: (panel: UIPanel) => void;
   setMicActive: (active: boolean) => void;
   setLocale: (locale: string, isRtl: boolean) => void;
   setViewStage: (stage: Stage | null) => void;
+  setShowHome: (show: boolean) => void;
 }
 
 export const useUIStore = create<UISlice>()((set) => ({
@@ -74,9 +76,11 @@ export const useUIStore = create<UISlice>()((set) => ({
   isRtl: false,
   locale: "en",
   viewStage: null,
+  showHome: true,
 
   setActivePanel: (activePanel) => set({ activePanel }),
   setMicActive: (isMicActive) => set({ isMicActive }),
   setLocale: (locale, isRtl) => set({ locale, isRtl }),
   setViewStage: (viewStage) => set({ viewStage }),
+  setShowHome: (showHome) => set({ showHome }),
 }));

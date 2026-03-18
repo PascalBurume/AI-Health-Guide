@@ -26,6 +26,8 @@ class GoogleMapsClient:
         if self._client is None:
             return []  # Google Maps not configured — care navigation disabled
         config = SEARCH_CONFIG[triage_color]
+
+        # Try with open_now first; fall back to all facilities if none are open
         results = self._client.places_nearby(
             location=(location.latitude, location.longitude),
             radius=config["radius"],
@@ -33,6 +35,13 @@ class GoogleMapsClient:
             keyword=config["keyword"],
             open_now=True,
         )
+        if not results.get("results"):
+            results = self._client.places_nearby(
+                location=(location.latitude, location.longitude),
+                radius=config["radius"],
+                type=config["types"][0],
+                keyword=config["keyword"],
+            )
 
         facilities = []
         for place in results.get("results", [])[:5]:

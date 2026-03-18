@@ -1,6 +1,7 @@
 """FastAPI application — AI Health Guide backend."""
 
 import base64
+import logging
 import uuid
 from contextlib import asynccontextmanager
 
@@ -8,6 +9,8 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -103,6 +106,11 @@ class UpdateLanguageRequest(BaseModel):
 
 class TranslateReportRequest(BaseModel):
     language: str
+
+
+class SubmitLocationRequest(BaseModel):
+    latitude: float
+    longitude: float
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +230,56 @@ async def upload_image(session_id: str, image: UploadFile = File(...)):
         session = await orchestrator.process_image_and_continue(session)
         await redis.save(session)
 
+    return session.model_dump(mode="json")
+
+
+# ---------------------------------------------------------------------------
+# Location / nearby facilities
+# ---------------------------------------------------------------------------
+
+@app.post("/api/v1/sessions/{session_id}/location")
+async def submit_location(session_id: str, body: SubmitLocationRequest):
+    session = await redis.load(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    if not session.triage:
+        raise HTTPException(400, "Triage must be completed before searching facilities")
+
+    from ai_health_guide.models.session import Location
+    from ai_health_guide.tools.google_maps import GoogleMapsClient
+
+    session.patient_location = Location(latitude=body.latitude, longitude=body.longitude)
+
+    maps_client = GoogleMapsClient(config.google_maps_api_key)
+    try:
+        facilities = maps_client.places_nearby(
+            location=session.patient_location,
+            triage_color=session.triage.color,
+        )
+    except Exception as exc:
+        logger.error(f"[location] places_nearby failed: {exc}")
+        raise HTTPException(502, f"Facility search failed: {exc}")
+    session.facilities = facilities
+
+    if facilities:
+        try:
+            directions = maps_client.get_directions(
+                origin=session.patient_location,
+                destination=facilities[0],
+            )
+            session.directions = directions
+        except Exception as exc:
+            logger.error(f"[location] get_directions failed: {exc}")
+
+    await redis.save(session)
+    return session.model_dump(mode="json")
+
+
+@app.post("/api/v1/sessions/{session_id}/skip-location")
+async def skip_location(session_id: str):
+    session = await redis.load(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
     return session.model_dump(mode="json")
 
 

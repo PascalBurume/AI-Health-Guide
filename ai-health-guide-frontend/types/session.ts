@@ -26,6 +26,33 @@ export interface RedFlag {
   requires_emergency: boolean;
 }
 
+export interface Location {
+  latitude: number;
+  longitude: number;
+  address?: string | null;
+}
+
+export interface Facility {
+  name: string;
+  place_id: string;
+  address: string;
+  location: Location;
+  facility_type: string;
+  distance_meters: number;
+  duration_minutes: number;
+  is_open: boolean;
+  rating?: number | null;
+  phone?: string | null;
+}
+
+export interface Directions {
+  distance: string;
+  duration: string;
+  steps: string[];
+  polyline: string;
+  map_url: string;
+}
+
 export interface ABCDEAssessment {
   airway?: string | null;
   breathing?: string | null;
@@ -100,6 +127,11 @@ export interface SessionState {
 
   // Triage
   triage: TriageResult | null;
+
+  // Navigation
+  patient_location: Location | null;
+  facilities: Facility[];
+  directions: Directions | null;
 
   // Reports
   patient_report: PatientReport | null;

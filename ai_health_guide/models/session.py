@@ -74,6 +74,11 @@ class SessionState(BaseModel):
     # Stage 4 — Triage
     triage: Optional[TriageResult] = None
 
+    # Stage 4.5 — Navigation (user-triggered)
+    patient_location: Optional[Location]  = None
+    facilities:       list[Facility]      = []
+    directions:       Optional[dict]      = None
+
     # Stage 5 — Reports
     patient_report:   Optional[PatientReport] = None
     clinician_report: Optional[SOAPNote]      = None
