@@ -2,12 +2,14 @@
 
 import { Header } from "@/components/shell/Header";
 import { StageProgressBar } from "@/components/shell/StageProgressBar";
+import { HomePage } from "@/components/home/HomePage";
 import { WelcomeScreen } from "@/components/stages/WelcomeScreen";
 import { ImageUploadScreen } from "@/components/stages/ImageUploadScreen";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { ChatInputBar } from "@/components/chat/ChatInputBar";
 import { TriageCard } from "@/components/triage/TriageCard";
 import { ReportView } from "@/components/report/ReportView";
+import { AgentActivityPanel } from "@/components/shell/AgentActivityPanel";
 import { Spinner } from "@/components/ui/Spinner";
 import { useSessionStore, useUIStore } from "@/store";
 import { useCreateSession } from "@/hooks/useCreateSession";
@@ -23,6 +25,8 @@ export default function Home() {
   const isRtl      = useUIStore((s) => s.isRtl);
   const viewStage  = useUIStore((s) => s.viewStage);
   const setViewStage = useUIStore((s) => s.setViewStage);
+  const showHome   = useUIStore((s) => s.showHome);
+  const setShowHome = useUIStore((s) => s.setShowHome);
 
   const { createSession, isCreating } = useCreateSession();
   const clearSession = useSessionStore((s) => s.clearSession);
@@ -30,6 +34,11 @@ export default function Home() {
   const handleNewConsultation = () => {
     setViewStage(null);
     clearSession();
+    setShowHome(true);
+  };
+
+  const handleGoHome = () => {
+    setShowHome(true);
   };
 
   useSessionPolling(sessionId);
@@ -58,10 +67,22 @@ export default function Home() {
     if (res.ok) setSession(await res.json());
   };
 
+  // Show home page
+  if (showHome) {
+    return (
+      <HomePage
+        hasActiveSession={!!sessionId && !!session}
+        onStartConsultation={() => setShowHome(false)}
+        onResumeConsultation={() => setShowHome(false)}
+      />
+    );
+  }
+
+  // No session yet — show welcome / language selection
   if (!sessionId || !session) {
     return (
       <div dir={isRtl ? "rtl" : "ltr"}>
-        <Header stage="intake" />
+        <Header stage="intake" onGoHome={handleGoHome} />
         <main className="mx-auto max-w-2xl p-4">
           {error && (
             <p className="mb-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>
@@ -82,7 +103,7 @@ export default function Home() {
 
   return (
     <div dir={isRtl ? "rtl" : "ltr"} className="flex min-h-screen flex-col bg-gray-50">
-      <Header stage={stage} onNewConsultation={handleNewConsultation} />
+      <Header stage={stage} onNewConsultation={handleNewConsultation} onGoHome={handleGoHome} />
       <StageProgressBar currentStage={realStage} />
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-hidden">
         {/* Image upload prompt (only on real questioning stage) */}
@@ -97,22 +118,16 @@ export default function Home() {
             <TriageCard triage={session.triage} sessionId={sessionId} />
           </div>
         )}
-        {/* Processing spinner while triage/reports are generating */}
-        {["triage", "visual"].includes(realStage) && !session.triage && !viewStage && (
-          <div className="flex flex-col items-center gap-4 rounded-2xl border border-blue-100 bg-blue-50 px-6 py-8 mx-4 mt-4 text-center">
-            <Spinner size="lg" />
-            <p className="text-sm font-medium text-blue-700">Analyzing your symptoms and generating assessment…</p>
-            <p className="text-xs text-blue-500">This may take up to 30 seconds</p>
-          </div>
-        )}
-        {/* Report generation spinner */}
-        {realStage === "report" && !session.patient_report && !viewStage && (
-          <div className="flex flex-col items-center gap-4 rounded-2xl border border-blue-100 bg-blue-50 px-6 py-8 mx-4 mt-4 text-center">
-            <Spinner size="lg" />
-            <p className="text-sm font-medium text-blue-700">Generating your health report…</p>
-            <p className="text-xs text-blue-500">Almost done</p>
-          </div>
-        )}
+        {/* Agent activity panel while triage/reports are generating */}
+        {(["triage", "visual"].includes(realStage) && !session.triage && !viewStage) || 
+         (realStage === "report" && !session.patient_report && !viewStage) ? (
+          <AgentActivityPanel
+            currentStage={realStage}
+            hasTriage={!!session.triage}
+            hasReport={!!session.patient_report}
+            safetyChecks={session.safety_checks ?? []}
+          />
+        ) : null}
         {/* Full report (visible when viewing report/complete) */}
         {["report", "complete"].includes(stage) && session.patient_report && (
           <div className="overflow-y-auto px-4 pt-4 pb-4">
@@ -121,6 +136,10 @@ export default function Home() {
               patientReport={session.patient_report}
               clinicianReport={session.clinician_report}
               triageColor={session.triage?.color ?? null}
+              facilities={session.facilities ?? []}
+              directions={session.directions ?? null}
+              patientLocation={session.patient_location ?? null}
+              onUpdated={refreshSession}
             />
           </div>
         )}

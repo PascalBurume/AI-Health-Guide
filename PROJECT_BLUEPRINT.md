@@ -32,8 +32,8 @@ Clinics lose time before the doctor enters the room. Patients arrive with unstru
 
 **AI Health Guide** is a pre-consultation AI agent platform consisting of:
 
-- A **Python backend** running a 5-stage clinical pipeline with 9 specialized agents, powered by **MedGemma 1.5** running locally (patient data stays on-premise) and **OpenAI** used exclusively for voice features.
-- A **Next.js 14 mobile-first web application** that guides patients through each stage via chat, voice, and image input — in their native language, including RTL (Arabic).
+- A **Python backend** running a 5-stage clinical pipeline with 9 specialized agents, powered by **MedGemma 1.0:4b via Ollama** running locally (patient data stays on-premise) and **OpenAI GPT-4o** for report generation, translation, and voice features.
+- A **Next.js 14 mobile-first web application** with a full **landing home page** (hero, features, agent orchestration animation, testimonials) that guides patients through each stage via chat, voice, and image input — in their native language, including RTL (Arabic). Includes a real-time **AgentActivityPanel** for pipeline status and **NearbyFacilities** component with Google Maps-powered facility search.
 - A **deterministic safety layer** (Safety Guardian + triage decision matrix) that cannot be overridden by LLM output.
 
 ### Pipeline Architecture

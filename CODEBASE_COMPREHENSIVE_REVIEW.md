@@ -63,7 +63,7 @@
 | Languages supported | 6 (EN, FR, ES, AR, JA, SW) |
 | AI Agents | 9 (7 pipeline + 1 safety + 1 orchestrator) |
 | API Endpoints | 12 REST (backend) + 13 BFF proxy (frontend) |
-| React Components | 18 production components |
+| React Components | 22 production components |
 | Zustand Stores | 2 (session + UI) |
 
 ### Architecture in One Sentence
@@ -86,7 +86,7 @@ graph TB
         NextApp["App Router<br/>page.tsx"]
         BFF["BFF Proxy Layer<br/>13 API Routes"]
         Zustand["Zustand Stores<br/>Session + UI"]
-        Components["18 React Components"]
+        Components["22 React Components"]
         I18n["next-intl<br/>6 Languages"]
         PDF["@react-pdf/renderer<br/>PDF Export"]
     end
@@ -202,7 +202,7 @@ graph LR
 | **Language** | TypeScript | ^5 | Type safety |
 | **State** | Zustand | ^5.0.12 | Client state management |
 | **Styling** | Tailwind CSS | ^3.4.1 | Utility-first CSS |
-| **i18n** | next-intl | ^4.8.3 | 6-language translations |
+| **i18n** | next-intl | ^4.8.3 | 6-language translations (UI labels) |
 | **PDF** | @react-pdf/renderer | ^4.3.2 | Client-side PDF generation |
 | **Testing** | Vitest / Playwright | ^4.1 / ^1.58 | Unit / E2E testing |
 | **Utilities** | clsx + tailwind-merge | — | className composition |
@@ -269,7 +269,7 @@ AI-Health-Guide/
 │   │   ├── language_detection.py       # lingua wrapper
 │   │   ├── disclaimer_checker.py       # Mandatory disclaimer validation
 │   │   ├── soap_formatter.py           # SOAP note structure enforcer
-│   │   └── google_maps.py              # Facility finder (legacy)
+│   │   └── google_maps.py              # Google Maps Places + Directions (active)
 │   │
 │   ├── prompts/                        # System prompt templates
 │   │   ├── intake.txt
@@ -320,30 +320,32 @@ AI-Health-Guide/
     │                       └── tts/route.ts
     │
     ├── components/
+    │   ├── home/
+    │   │   └── HomePage.tsx            # Full landing page (hero, features, how-it-works,
+    │   │                               #   agent orchestration, testimonials, about, footer)
     │   ├── shell/
-    │   │   ├── Header.tsx              # Sticky header, stage badge, locale
-    │   │   └── StageProgressBar.tsx    # 5-step progress with labels
+    │   │   ├── Header.tsx              # Sticky header, stage badge, locale, go-home logo
+    │   │   ├── StageProgressBar.tsx    # 5-step progress with labels
+    │   │   └── AgentActivityPanel.tsx  # Real-time agent pipeline status during processing
     │   ├── chat/
     │   │   ├── ChatWindow.tsx          # Message list, auto-scroll, typing dots
     │   │   └── ChatInputBar.tsx        # Text + voice + language switcher
     │   ├── stages/
     │   │   ├── WelcomeScreen.tsx       # Language cards + disclaimer
     │   │   ├── IntakeScreen.tsx        # Loading spinner
-    │   │   ├── ImageUploadScreen.tsx   # Drag-drop + preview
-    │   │   └── LocationScreen.tsx      # Geolocation + skip
+    │   │   └── ImageUploadScreen.tsx   # Drag-drop + preview
     │   ├── triage/
     │   │   └── TriageCard.tsx          # Color-coded urgency banner + TTS
     │   ├── report/
     │   │   ├── ReportView.tsx          # Tabs, translation, TTS, PDF
+    │   │   ├── NearbyFacilities.tsx    # Geolocation + facility list + Google Maps directions
     │   │   ├── PatientReportDocument.tsx
     │   │   └── TranslatedReportDocument.tsx
-    │   ├── ui/
-    │   │   ├── Button.tsx              # 4 variants, 3 sizes
-    │   │   ├── Card.tsx                # Header/Body/Footer
-    │   │   ├── Spinner.tsx             # 3 sizes
-    │   │   └── TriageBadge.tsx         # Color pill + pulse
-    │   └── map/
-    │       └── FacilityMap.tsx          # Placeholder (feature removed)
+    │   └── ui/
+    │       ├── Button.tsx              # 4 variants, 3 sizes
+    │       ├── Card.tsx                # Header/Body/Footer
+    │       ├── Spinner.tsx             # 3 sizes
+    │       └── TriageBadge.tsx         # Color pill + pulse
     │
     ├── store/
     │   └── index.ts                    # useSessionStore + useUIStore
@@ -775,40 +777,46 @@ graph TD
 
 ### 6.1 App Router & Pages
 
-The frontend is essentially a **single-page application** inside Next.js App Router. The one `page.tsx` (174 lines) acts as a stage router:
+The frontend is essentially a **single-page application** inside Next.js App Router. The one `page.tsx` acts as a stage router with a landing page:
 
 ```mermaid
 graph TD
-    Page["page.tsx<br/>(174 lines)"]
+    Page["page.tsx"]
+    
+    Page -->|"showHome === true"| HP["HomePage<br/>Full landing page with hero,<br/>features, agent orchestration,<br/>testimonials, about/trust"]
+    HP -->|"Start Consultation"| WS
+    HP -->|"Resume Session"| Layout
     
     Page -->|"No session"| WS["WelcomeScreen<br/>Language selection + disclaimer"]
     Page -->|"isLoading"| SP["Full-screen Spinner"]
     
     Page -->|"Session active"| Layout["Main Layout"]
-    Layout --> Header["Header<br/>Stage badge + locale + new consultation"]
+    Layout --> Header["Header<br/>Stage badge + locale + logo (go home)"]
     Layout --> Progress["StageProgressBar<br/>5 connected steps"]
     Layout --> Content["Content Area<br/>(conditional)"]
     
     Content -->|"intake"| Chat1["ChatWindow + ChatInputBar"]
     Content -->|"questioning"| Chat2["ChatWindow + ChatInputBar"]
     Content -->|"questioning_complete<br/>+ no image"| IMG["ImageUploadScreen<br/>Drag-drop + skip"]
-    Content -->|"visual/triage<br/>(processing)"| Spin2["Processing Spinner"]
+    Content -->|"visual/triage<br/>(processing)"| AAP["AgentActivityPanel<br/>Real-time agent pipeline status"]
     Content -->|"triage available"| TC["TriageCard<br/>Color banner + TTS"]
-    Content -->|"report/complete"| RV["ReportView<br/>Tabs + translate + PDF"]
+    Content -->|"report/complete"| RV["ReportView + NearbyFacilities<br/>Tabs + translate + PDF + directions"]
 ```
 
 ### 6.2 Component Inventory
 
 | Component | Lines | Props | Key Features |
 |-----------|-------|-------|-------------|
-| **Header** | 62 | `stage, onNewConsultation?` | Sticky, stage badge, locale display |
+| **HomePage** | ~700 | `hasActiveSession, onStartConsultation, onResumeConsultation` | Full landing page: hero, features, how-it-works, agent orchestration with scenario-driven animation (3 patient personas), testimonials, about/trust, footer, resume banner |
+| **Header** | 48 | `stage, onNewConsultation?, onGoHome?` | Sticky, stage badge, locale, clickable logo to return home |
 | **StageProgressBar** | 99 | `currentStage` | 5 steps, clickable completed steps, question counter |
+| **AgentActivityPanel** | ~80 | `currentStage, hasTriage, hasReport, safetyChecks` | Real-time agent pipeline display (Visual/Triage/Report), animated dots, replaces generic spinners |
 | **ChatWindow** | 76 | `messages[], isTyping?` | Auto-scroll, typing indicator (3 dots), message bubbles |
 | **ChatInputBar** | 255 | `sessionId, onMessageSent, disabled?` | Text input, voice recording, language switcher (6 langs) |
 | **WelcomeScreen** | 65 | `onStart, isLoading?` | 6 language cards (native names), disclaimer |
 | **ImageUploadScreen** | 115 | `sessionId, onUploaded, onSkip` | Drag-drop, preview, upload/skip buttons |
 | **IntakeScreen** | 30 | `stageLabel?` | Loading spinner |
-| **LocationScreen** | 139 | `sessionId, onLocationSubmitted, onSkip` | Geolocation API, skip option (legacy) |
+| **NearbyFacilities** | ~100 | `sessionId, facilities, directions, patientLocation, onUpdated` | Geolocation sharing, facility cards with distance/rating, Google Maps external direction links, skip option |
 | **TriageCard** | 80 | `triage, sessionId` | Color-coded banner (RED/YELLOW/GREEN), TTS button |
 | **ReportView** | 346 | `sessionId, patientReport, clinicianReport, triageColor` | Tabs, translate, TTS, PDF download |
 | **PatientReportDocument** | 97 | `report, triageColor` | @react-pdf A4 layout |
@@ -838,8 +846,10 @@ graph LR
         UI_P["activePanel: UIPanel"]
         UI_M["isMicActive: boolean"]
         UI_VS["viewStage: Stage | null"]
+        UI_SH["showHome: boolean (default true)"]
         UI_A1["setLocale(locale, isRtl)"]
         UI_A2["setViewStage(stage)"]
+        UI_A3["setShowHome(show)"]
     end
     
     subgraph "Persistence"
@@ -852,6 +862,7 @@ graph LR
 **Key design decisions:**
 - Only `sessionId` is persisted to localStorage (full session re-fetched on reload)
 - `viewStage` allows reviewing completed stages without navigating back
+- `showHome` controls landing page visibility (default `true`); set to `false` when entering consultation
 - `isRtl` auto-set when `locale === "ar"`
 - Polling continues until `current_stage === "complete"`
 
@@ -1260,13 +1271,17 @@ graph TB
 | F18 | RTL support | ✅ Live | P1 | Arabic (ar) layout direction support |
 | F19 | Progress visualization | ✅ Live | P2 | 5-step progress bar with review of past stages |
 | F20 | New consultation | ✅ Live | P2 | Reset and start fresh |
+| F21 | Landing home page | ✅ Live | P1 | Full marketing/onboarding page with hero, features, agent orchestration animation, testimonials |
+| F22 | Agent activity panel | ✅ Live | P2 | Real-time pipeline status during processing (replaces generic spinners) |
+| F23 | Nearby facilities | ✅ Live | P1 | GPS-based facility search via Google Maps with external direction links |
 
-### Removed/Deprecated Features
+### Updated Feature: Care Navigation
 
-| Feature | Status | Reason |
-|---------|--------|--------|
-| Google Maps navigation | Removed | Replaced with text-based facility recommendation in report |
-| Geolocation permission | Legacy code present | LocationScreen.tsx still exists but unused in main flow |
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Google Maps facility search | ✅ Active | Backend `google_maps.py` searches nearby facilities using Google Places API, ranked by composite score (proximity 0.6 + rating 0.3 + open status 0.1). Includes `open_now` fallback — tries open facilities first, falls back to all if none found. |
+| Geolocation + directions | ✅ Active | `NearbyFacilities` component requests GPS permission, displays facility cards with distance/rating, and provides external Google Maps direction links (no embedded map). |
+| Backend error handling | ✅ Active | Location endpoint includes structured error logging for both `places_nearby` and `get_directions` failures. |
 
 ### Feature Gaps (Product Roadmap Candidates)
 
@@ -1302,11 +1317,9 @@ graph TB
 | TD5 | **Base64 images in session JSON** | `session.py`, `main.py` | 🟡 Medium | Store images in object storage (S3/MinIO), reference by URL |
 | TD6 | **Polling instead of WebSocket** | `useSessionPolling.ts` | 🟡 Medium | Implement WebSocket or SSE for real-time updates |
 | TD7 | **Global mutable state in main.py** | `main.py` (5 globals) | 🟡 Medium | Use FastAPI dependency injection |
-| TD8 | **Dead code: LocationScreen + google_maps.py** | `LocationScreen.tsx`, `google_maps.py` | 🟢 Low | Remove unused files |
-| TD9 | **Dead code: FacilityMap.tsx placeholder** | `FacilityMap.tsx` | 🟢 Low | Remove `map/` directory |
-| TD10 | **@vis.gl/react-google-maps in dependencies** | `package.json` | 🟢 Low | Remove unused dependency |
+| TD8 | **leaflet + react-leaflet installed but unused** | `package.json` | 🟢 Low | Remove if not needed, or integrate for map display |
 | TD11 | **requirements.txt includes unused packages** | `requirements.txt` | 🟢 Low | Remove `transformers`, `torch`, `accelerate` (using Ollama now) |
-| TD12 | **Frontend .env.local has Google Maps key** | `.env.local` | 🟡 Medium | Remove unused key |
+| TD12 | **Frontend .env.local has unused Google Maps client key** | `.env.local` | 🟢 Low | Remove `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (Google Maps is server-side only via Python `googlemaps` client) |
 | TD13 | **Missing structured logging** | All backend files | 🟡 Medium | Add structlog or loguru with correlation IDs |
 | TD14 | **No request ID / correlation ID** | `main.py` | 🟡 Medium | Add middleware for tracing |
 | TD15 | **No rate limiting** | `main.py` | 🟡 Medium | Add slowapi or similar |
@@ -1322,7 +1335,7 @@ graph TB
 - `accelerate>=0.28.0` — Same reason
 
 **Frontend — unused but installed:**
-- `@vis.gl/react-google-maps` — Google Maps removed from app
+- `leaflet` / `react-leaflet` — installed but not actively used in current components
 
 ---
 
@@ -1558,7 +1571,7 @@ types/session.ts:    Stage, TriageColor, Message, RedFlag, ABCDEAssessment,
 | `WHISPER_MODEL` | No | `whisper-1` | Speech-to-text model |
 | `TTS_MODEL` | No | `tts-1` | Text-to-speech model |
 | `TTS_VOICE` | No | `nova` | TTS voice |
-| `GOOGLE_MAPS_API_KEY` | No | — | Google Maps (legacy, unused) |
+| `GOOGLE_MAPS_API_KEY` | No | — | Google Maps Places + Directions (active for facility search) |
 | `REDIS_URL` | No | `redis://localhost:6379` | Redis connection URL |
 | `REDIS_PASSWORD` | No | — | Redis password |
 | `MAX_QUESTIONING_TURNS` | No | `10` | Max clinical interview turns |
@@ -1582,7 +1595,7 @@ types/session.ts:    Stage, TriageColor, Message, RedFlag, ABCDEAssessment,
 | openai | ≥1.30.0 | Active | GPT-4o, Whisper, TTS |
 | httpx | ≥0.27.0 | Active | Ollama HTTP client |
 | lingua-language-detector | ≥2.0.0 | Active | Offline language ID |
-| googlemaps | ≥4.10.0 | Legacy | Unused (maps removed) |
+| googlemaps | ≥4.10.0 | Active | Google Maps Places + Directions for facility search |
 | transformers | ≥4.40.0 | Legacy | Unused (using Ollama) |
 | torch | ≥2.2.0 | Legacy | Unused (using Ollama) |
 | accelerate | ≥0.28.0 | Legacy | Unused (using Ollama) |
@@ -1601,7 +1614,8 @@ types/session.ts:    Stage, TriageColor, Message, RedFlag, ABCDEAssessment,
 | @react-pdf/renderer | ^4.3.2 | Active | PDF generation |
 | clsx | ^2.1.1 | Active | Class composition |
 | tailwind-merge | ^3.0.2 | Active | Class deduplication |
-| @vis.gl/react-google-maps | ^1.7.1 | Legacy | Unused (maps removed) |
+| leaflet | ^1.9.4 | Installed | Map rendering library |
+| react-leaflet | ^4.2.1 | Installed | React wrapper for Leaflet |
 | typescript | ^5 | Active | Type safety |
 | vitest | ^4.1.0 | Active | Unit testing |
 | @playwright/test | ^1.58.2 | Active | E2E testing |

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { PatientReport, SOAPNote, TriageColor } from "@/types/session";
+import { PatientReport, SOAPNote, TriageColor, Facility, Location, Directions } from "@/types/session";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { TriageBadge } from "@/components/ui/TriageBadge";
+import { NearbyFacilities } from "@/components/report/NearbyFacilities";
 
 const TRANSLATE_LANGUAGES: { code: string; label: string }[] = [
   { code: "en", label: "English" },
@@ -31,6 +32,10 @@ interface ReportViewProps {
   patientReport: PatientReport;
   clinicianReport: SOAPNote | null;
   triageColor: TriageColor | null;
+  facilities: Facility[];
+  directions: Directions | null;
+  patientLocation: Location | null;
+  onUpdated: () => void;
 }
 
 export const ReportView = ({
@@ -38,6 +43,10 @@ export const ReportView = ({
   patientReport,
   clinicianReport,
   triageColor,
+  facilities,
+  directions,
+  patientLocation,
+  onUpdated,
 }: ReportViewProps) => {
   const [tab, setTab]             = useState<"patient" | "clinician">("patient");
   const [playingTts, setPlayingTts] = useState(false);
@@ -210,6 +219,16 @@ export const ReportView = ({
             <CardHeader><p className="font-semibold text-gray-700">What to tell the doctor</p></CardHeader>
             <CardBody><p className="text-sm leading-relaxed text-gray-700">{patientReport.what_to_tell_doctor}</p></CardBody>
           </Card>
+
+          {/* Nearby facilities */}
+          <NearbyFacilities
+            sessionId={sessionId}
+            facilities={facilities}
+            directions={directions}
+            patientLocation={patientLocation}
+            onUpdated={onUpdated}
+          />
+
           <p className="text-xs text-gray-400 italic">{patientReport.disclaimer}</p>
 
           {/* Actions */}
